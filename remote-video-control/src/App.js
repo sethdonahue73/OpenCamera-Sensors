@@ -16,6 +16,9 @@ function App() {
       setVideos(res.data.videos);
     });
   }, []);
+
+
+
   const playCombined = () => {
     window.open("http://localhost:8000/play-combined");
   };
@@ -26,19 +29,39 @@ function App() {
   };
 
   const stopRecording = async () => {
-    const res = await axios.post("http://localhost:8000/stop-recording", {
-      name: filename,
-      save_path: savePath
-    });
-    alert("Video saved: " + res.data.path);
+    try {
+      const res = await axios.post("http://localhost:8000/stop-recording", {
+        name: filename,
+        save_path: savePath
+      });
+
+      alert("Video saved: " + res.data.path);
+    } catch (error) {
+      console.error("Failed to stop recording:", error);
+      alert("Failed to stop recording.");
+    }
   };
 
+
   const runPoseEstimation = async () => {
-    const res = await axios.post("http://localhost:8000/run-pose-estimation", {
-      video_path: selectedVideo
-    });
-    setPoseVideoUrl("http://localhost:8000/" + res.data.pose_video_path);
-  };
+  if (!selectedVideo) return;
+
+  const response = await fetch("http://localhost:8000/run-pose-estimation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ video_filename: selectedVideo }),
+  });
+
+  const data = await response.json();
+  setPoseVideoUrl("http://localhost:8000/" + data.pose_video_path);
+};
+
+  // const runPoseEstimation = async () => {
+  //   const res = await axios.post("http://localhost:8000/run-pose-estimation", {
+  //     video_path: selectedVideo
+  //   });
+  //   setPoseVideoUrl("http://localhost:8000/" + res.data.pose_video_path);
+  // };
 
 return (
   <div style={{ padding: "2rem" }}>

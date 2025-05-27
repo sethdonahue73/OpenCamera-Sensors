@@ -3,7 +3,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from src.RemoteControl import RemoteControl
-import os, time, datetime, shutil
+import os, time, shutil
+from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 import glob
 
@@ -52,9 +53,22 @@ def start_recording():
 #     video_path = full_save_path
 #     return {"path": full_save_path}
 
+class StopRecordingRequest(BaseModel):
+    name: str
+    save_path: str
+
+# @app.post("/stop-recording")
+# def stop_recording(request: StopRecordingRequest):
+#     name = request.name
+#     save_path = request.save_path
+#     # your recording stopping logic here
+#     return {"path": f"{save_path}/{name}"}
+
 @app.post("/stop-recording")
-def stop_recording(file: FileName):
+def stop_recording(request: StopRecordingRequest):
     global remote, video_path
+    filename = request.name  # instead of request.filename
+    save_path = request.save_path
 
     remote.stop_video()
     original_path = remote.get_video(want_progress_bar=True)
@@ -65,12 +79,14 @@ def stop_recording(file: FileName):
     os.makedirs(session_folder, exist_ok=True)
 
     # Determine filename iteration (recording_0001.mp4, _0002, etc.)
-    base_name = "recording"
+    filename = request.name
+    base_name = os.path.splitext(os.path.basename(filename))[0]
     extension = ".mp4"
     counter = 1
+    save_path = request.save_path
     while True:
         new_filename = f"{base_name}_{counter:04d}{extension}"
-        full_path = os.path.join(session_folder, new_filename)
+        full_path = os.path.join(save_path, session_folder, new_filename)
         if not os.path.exists(full_path):
             break
         counter += 1
@@ -97,11 +113,9 @@ def play_combined():
 
 @app.get("/list-videos")
 def list_videos():
-    files = glob.glob("videos/**/*.mp4", recursive=True)
+    files = glob.glob(r"C:\Users\sethy\Videos\Test Video Data/**/*.mp4", recursive=True)
     files = [f.replace("\\", "/") for f in files]  # Normalize paths for frontend
     return {"videos": files}
-
-
 
 
 @app.post("/run-pose-estimation")
