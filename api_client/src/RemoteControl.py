@@ -1,7 +1,7 @@
 import socket
 import sys
-
-from progress.bar import Bar
+from tqdm import tqdm  # <-- Use tqdm for progress bar
+# from progress.bar import Bar
 
 BUFFER_SIZE = 4096
 PROPS_PATH = '../app/src/main/assets/server_config.properties'
@@ -122,34 +122,38 @@ class RemoteControl:
         :param want_progress_bar: (boolean) display progress bar during video loading
         :return: Saved video's filename
         """
-
-        # open socket as a file with no buffering (to avoid losing part of the video bytes)
         socket_file = self.socket.makefile('rwb', 0)
-        # send request message
         status, socket_file = self._send_and_get_response_status_bytes(
             (self.props['GET_VIDEO_REQUEST'] + "\n").encode()
         )
-        # print(status)
-        # get video data length
+
         line = socket_file.readline()
         data_length = int(line.decode())
-        # get video filename
         line = socket_file.readline()
-        filename = line.decode()
-        filename = filename.strip("\n")
-        print(filename)
-        # end marker
-        marker = socket_file.readline()
-        # print(marker)
-        # close socket file, start receiving video bytes until length
+        filename = line.decode().strip("\n")
+        socket_file.readline()  # Read and discard end marker
         socket_file.close()
+
         if want_progress_bar:
-            with Bar('Downloading video', max=data_length) as bar:
+            with tqdm(total=data_length, unit='B', unit_scale=True, desc="Downloading video") as bar:
                 self._recv_video_file(filename, data_length, bar)
         else:
             self._recv_video_file(filename, data_length)
+
         return filename
 
+    def _recv_video_file(self, filename, data_length, bar=None):
+        recv_len = 0
+        with open(filename, "wb") as video_file:
+            while recv_len < data_length:
+                more = self.socket.recv(BUFFER_SIZE)
+                if not more:
+                    raise EOFError()
+                video_file.write(more)
+                recv_len += len(more)
+                if bar is not None:
+                    bar.update(len(more))
+                    
     def _send_and_get_response_status(self, msg):
         # open socket as a file
         socket_file = self.socket.makefile("rw")
@@ -172,20 +176,20 @@ class RemoteControl:
 
         return status.strip('\n') == self.props['SUCCESS'], socket_file
 
-    def _recv_video_file(self, filename, data_length, bar=None):
-        recv_len = 0
-        with open(filename, "wb") as video_file:
-            while recv_len < data_length:
-                more = self.socket.recv(BUFFER_SIZE)
-                if not more:
-                    raise EOFError()
-                recv_len += len(more)
-                video_file.write(more)
-                if bar is not None:
-                    bar.next(len(more))
-                    sys.stdout.flush()
-        if bar is not None:
-            bar.finish()
+    # def _recv_video_file(self, filename, data_length, bar=None):
+    #     recv_len = 0
+    #     with open(filename, "wb") as video_file:
+    #         while recv_len < data_length:
+    #             more = self.socket.recv(BUFFER_SIZE)
+    #             if not more:
+    #                 raise EOFError()
+    #             recv_len += len(more)
+    #             video_file.write(more)
+    #             if bar is not None:
+    #                 bar.next(len(more))
+    #                 sys.stdout.flush()
+    #     if bar is not None:
+    #         bar.finish()
 
     def _send_and_get_response_status_bytes(self, msg):
         # open socket as a file
