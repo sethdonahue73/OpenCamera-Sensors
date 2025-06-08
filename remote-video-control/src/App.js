@@ -3,7 +3,7 @@ import axios from 'axios';
 
 function App() {
   const [filename, setFilename] = useState("recorded_video.mp4");
-  const [savePath, setSavePath] = useState("/videos");
+  const [savePath, setSavePath] = useState("c:/Videos/Test Video Data");
 
   const startRecording = async () => {
     const res = await axios.post("http://localhost:8000/start-recording");

@@ -2,9 +2,10 @@ from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from src.RemoteControl import RemoteControl
-import os, time
+import os, time, glob
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
+
 
 app = FastAPI()
 HOST = '192.168.4.245'
@@ -42,22 +43,52 @@ def start_recording():
 #     video_path = full_save_path
 #     return {"path": full_save_path}
 
+
 @app.post("/stop-recording")
 def stop_recording(file: FileName):
     global remote, video_path
+
+    # Stop video capture
     remote.stop_video()
-    
-    # Provide the required argument here
+
+    # Retrieve downloaded video path (likely stored in ./api_client/)
     original_path = remote.get_video(want_progress_bar=True)
-    
+
+    # Ensure filename ends with .mp4
     custom_filename = file.name if file.name.endswith(".mp4") else file.name + ".mp4"
-    full_save_path = os.path.join(file.save_path, custom_filename)
+
+    # Resolve full save path
+    full_save_dir = os.path.abspath(file.save_path)
+    os.makedirs(full_save_dir, exist_ok=True)
+    full_save_path = os.path.join(full_save_dir, custom_filename)
+
+    # Rename/move the downloaded video to the final location
+    print(f"Renaming: {original_path} -> {full_save_path}")
     os.rename(original_path, full_save_path)
-    
+
+    # Clean up and return
     remote.close()
     video_path = full_save_path
 
     return {"path": full_save_path}
+
+# @app.post("/stop-recording")
+# def stop_recording(file: FileName):
+#     global remote, video_path
+#     remote.stop_video()
+    
+#     # Provide the required argument here
+#     original_path = remote.get_video(want_progress_bar=True)
+    
+#     custom_filename = file.name if file.name.endswith(".mp4") else file.name + ".mp4"
+#     full_save_path = os.path.join(file.save_path, custom_filename)
+#     os.rename(original_path, full_save_path)
+    
+#     remote.close()
+#     video_path = full_save_path
+
+#     return {"path": full_save_path}
+
 
 
 @app.get("/play-video")
