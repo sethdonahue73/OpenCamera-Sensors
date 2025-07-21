@@ -5,10 +5,13 @@ from src.RemoteControl import RemoteControl
 import os, time, glob
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
-
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+import cv2
 
 app = FastAPI()
-HOST = '192.168.4.245'
+HOST = '172.20.10.5' #'192.168.4.245'
 remote = None
 video_path = ""
 
@@ -95,31 +98,66 @@ def stop_recording(file: FileName):
 def play_video():
     return FileResponse(video_path, media_type="video/mp4")
 
+# Utility to draw landmarks
+def draw_landmarks_on_image(image, detection_result):
+    pose_landmarks_list = detection_result.pose_landmarks
+    annotated_image = image.copy()
+
+    for landmarks in pose_landmarks_list:
+        mp.solutions.drawing_utils.draw_landmarks(
+            image=annotated_image,
+            landmark_list=landmarks,
+            connections=mp.solutions.pose.POSE_CONNECTIONS,
+            landmark_drawing_spec=mp.solutions.drawing_utils.DrawingSpec(color=(0,255,0), thickness=2, circle_radius=2),
+            connection_drawing_spec=mp.solutions.drawing_utils.DrawingSpec(color=(255,0,0), thickness=2))
+    return annotated_image
+
+# Route to process video
 @app.post("/run-pose-estimation")
-def run_pose_estimation():
-    import cv2
-    import mediapipe as mp
+def run_pose_estimation(file: FileName):
+    filename = file.filename
+    save_path = file.save_path
+    video_path = os.path.join(save_path, filename)
+
+    if not os.path.exists(video_path):
+        return {"error": f"Video file not found: {video_path}"}
+
+    output_path = video_path.replace(".mp4", "_pose.mp4")
+    model_path = os.path.abspath("cv_models/mediapipe/pose_landmarker_heavy.task")
+    # Create the pose detector
+    base_options = python.BaseOptions(model_asset_path=model_path)
+    options = vision.PoseLandmarkerOptions(
+        base_options=base_options,
+        output_segmentation_masks=False,
+        running_mode=vision.RunningMode.VIDEO)
+    detector = vision.PoseLandmarker.create_from_options(options)
 
     cap = cv2.VideoCapture(video_path)
-    pose = mp.solutions.pose.Pose()
-    mp_drawing = mp.solutions.drawing_utils
+    if not cap.isOpened():
+        return {"error": f"Cannot open video: {video_path}"}
 
-    out_path = video_path.replace(".mp4", "_pose.mp4")
-    width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
 
-    out = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
-    while cap.isOpened():
+    frame_idx = 0
+    while True:
         ret, frame = cap.read()
         if not ret:
             break
-        results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        if results.pose_landmarks:
-            mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp.solutions.pose.POSE_CONNECTIONS)
-        out.write(frame)
+
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
+
+        # Run detection with timestamp in ms
+        detection_result = detector.detect_for_video(mp_image, frame_idx * int(1000 / fps))
+
+        annotated_frame = draw_landmarks_on_image(frame, detection_result)
+        out.write(annotated_frame)
+
+        frame_idx += 1
 
     cap.release()
     out.release()
-    return {"pose_video_path": out_path}
+    return {"pose_video_path": output_path}

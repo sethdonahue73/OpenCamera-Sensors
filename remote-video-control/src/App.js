@@ -19,7 +19,16 @@ function App() {
   };
 
   const runPoseEstimation = async () => {
-    const res = await axios.post("http://localhost:8000/run-pose-estimation");
+    const res = axios.post("http://localhost:8000/run-pose-estimation", {
+    filename: "recorded_video.mp4",
+    save_path: "c:/Videos/Test Video Data"
+  })
+  .then(response => {
+    console.log("Pose estimation result:", response.data);
+  })
+  .catch(error => {
+    console.error("Pose estimation error:", error);
+  });
     alert("Pose estimation done: " + res.data.pose_video_path);
   };
 
