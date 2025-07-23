@@ -7,6 +7,7 @@ import os
 import shutil
 from datetime import datetime
 import uuid
+from pathlib import Path
 
 app = FastAPI()
 
@@ -58,7 +59,7 @@ def start_recording():
 def stop_recording(req: StopRecordingRequest):
     if req.session_id not in sessions:
         raise HTTPException(status_code=400, detail="Invalid session ID")
-
+    
     rc = sessions.pop(req.session_id)
     try:
         rc.stop_video()
@@ -70,8 +71,15 @@ def stop_recording(req: StopRecordingRequest):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     base, _ = os.path.splitext(req.name)
     unique_name = f"{base}_{timestamp}.mp4"
-    os.makedirs(req.save_path, exist_ok=True)
-    final_path = os.path.join(req.save_path, unique_name)
-    shutil.move(original_path, final_path)
+    # save_path = req.save_path.rstrip("\\/")
+    # final_save_path = os.path.join(save_path, req.session_id)
+    # os.makedirs(final_save_path, exist_ok=True)
+    # final_path = os.path.join(final_save_path, unique_name)
+    final_save_path = Path(req.save_path) / req.session_id
+    final_save_path.mkdir(parents=True, exist_ok=True)
+    # print(f"Moving video to {final_path}")
+    # shutil.move(original_path, final_path)
+    final_path = final_save_path / unique_name
+    shutil.move(original_path, str(final_path))
 
     return {"path": final_path}
