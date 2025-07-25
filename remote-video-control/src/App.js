@@ -2,9 +2,11 @@ import React, { useState } from "react";
 import axios from 'axios';
 
 function App() {
-  const [filename, setFilename] = useState("recorded_video.mp4");
+  const [filename, setFilename] = useState("ID_activity");
   const [savePath, setSavePath] = useState("c:/Videos/Test Video Data");
-  const [sessionId, setSessionId] = useState(null);
+  const [sessionId, setSessionId] = useState("project_name_and_date");
+  // const [host, setHost] = useState(null);
+
 
   // const startRecording = async () => {
   //   console.log("Start recording button clicked"); // <-- add this
@@ -30,11 +32,25 @@ function App() {
   //     alert("Error stopping recording.");
   //   }
   // };
+
+  const endSession = async () => {
+  try {
+    const res = await axios.post("http://localhost:8000/end-session", {
+      save_path: savePath,
+      session_id: sessionId
+    });
+    alert(res.data.message + "\nCSV: " + res.data.csv_path);
+  } catch (err) {
+    console.error("Failed to end session:", err);
+    alert("Error ending session.");
+  }
+};
     
   const startRecording = async () => {
     try {
       const res = await axios.post("http://localhost:8000/start-recording", {
         name: filename,
+        session_id: sessionId,
         save_path: savePath
       });
       setSessionId(res.data.session_id);
@@ -57,30 +73,49 @@ function App() {
         save_path: savePath
       });
       alert("Video saved to: " + res.data.path);
-      setSessionId(null); // clear after stopping
+
+      // Optionally extract the filename from the saved path if needed
+      // const extractedFilename = res.data.path.split("\\").pop(); // for Windows paths
+      // const extractedFilename = res.data.path.split("/").pop(); // for UNIX-like
+
+      // Automatically delete the video
+      // await deleteVideo(extractedFilename);
+      // setSessionId(null); // clear after stopping
     } catch (err) {
       console.error("Failed to stop recording:", err);
       alert("Error stopping recording.");
     }
   };
 
+  
+// const deleteVideo = async (filename) => {
+//   try {
+//     const res = await fetch(`http://${host}:8000/delete_video/${filename}`, {
+//       method: "DELETE",
+//     });
+//     const data = await res.json();
+//     alert(`Deleted video: ${data.file}`);
+//   } catch (err) {
+//     console.error("Failed to delete video", err);
+//   }
+// };
+
   return (
   <div style={{ padding: "2rem" }}>
     <h2>Video Recorder</h2>
+    <div style={{ marginTop: "0.5rem" }}>
+      <label>Filename: </label>
+      <input
+        value={filename}
+        onChange={(e) => setFilename(e.target.value)}
+      />
+    </div>
 
     <div>
       <label>Session ID: </label>
       <input
         value={sessionId}
         onChange={(e) => setSessionId(e.target.value)}
-      />
-    </div>
-
-    <div style={{ marginTop: "0.5rem" }}>
-      <label>Filename: </label>
-      <input
-        value={filename}
-        onChange={(e) => setFilename(e.target.value)}
       />
     </div>
 
@@ -92,10 +127,18 @@ function App() {
       />
     </div>
 
+    
+
     <div style={{ marginTop: "1rem" }}>
       <button onClick={startRecording}>Start</button>
       <button onClick={stopRecording} style={{ marginLeft: "1rem" }} disabled={!sessionId}>
         Stop
+      </button>
+      {/* <button onClick={() => deleteVideo(filename)} style={{ marginLeft: "1rem" }}>
+        Delete Video
+      </button> */}
+      <button onClick={endSession} style={{ marginLeft: "1rem" }}>
+        End Session
       </button>
     </div>
   </div>
