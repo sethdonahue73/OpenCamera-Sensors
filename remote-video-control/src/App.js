@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import axios from 'axios';
 
 function App() {
   const [filename, setFilename] = useState("ID_activity");
   const [savePath, setSavePath] = useState("c:/Videos/Test Video Data");
   const [sessionId, setSessionId] = useState("project_name_and_date");
+  const [host, setHost] = useState("localhost"); // Optional: make dynamic if needed
+
   // const [host, setHost] = useState(null);
 
 
@@ -99,19 +101,112 @@ function App() {
 //     console.error("Failed to delete video", err);
 //   }
 // };
+function VideoSelector({ sessionId, savePath }) {
+  const [videos, setVideos] = useState([]);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    async function fetchVideos() {
+      try {
+        const res = await axios.get("http://localhost:8000/list-videos", {
+          params: { session_id: sessionId, save_path: savePath },
+        });
+
+        const allVideos = [null, ...res.data.videos];
+        setVideos(allVideos);
+        setSelectedVideo(null); // default to None
+      } catch (err) {
+        console.error("Failed to fetch videos", err);
+        setVideos([null]);
+        setSelectedVideo(null);
+      }
+    }
+
+    fetchVideos();
+  }, [sessionId, savePath]);
+
+  const videoUrl =
+    selectedVideo && selectedVideo !== "null"
+      ? `http://localhost:8000/videos?root_path=${encodeURIComponent(
+          savePath
+        )}&session_id=${encodeURIComponent(
+          sessionId
+        )}&video_name=${encodeURIComponent(selectedVideo)}`
+      : null;
+
+  return (
+    <div>
+      <label htmlFor="video-select">Select Video:</label>
+      <select
+        id="video-select"
+        value={selectedVideo || "null"}
+        onChange={(e) =>
+          setSelectedVideo(e.target.value === "null" ? null : e.target.value)
+        }
+      >
+        <option value="null">None</option>
+        {videos
+          .filter((v) => v !== null)
+          .map((v) => (
+            <option key={v} value={v}>
+              {v}
+            </option>
+          ))}
+      </select>
+
+      {selectedVideo ? (
+        <video
+          key={selectedVideo}
+          src={videoUrl}
+          controls
+          style={{
+            width: "640px",
+            height: "360px",
+            marginTop: "1rem",
+            borderRadius: "8px",
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: "640px",
+            height: "360px",
+            backgroundColor: "black",
+            marginTop: "1rem",
+            borderRadius: "8px",
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+  useEffect(() => {
+      async function fetchHost() {
+        try {
+          const response = await axios.get("http://localhost:8000/config");
+          setHost(response.data.host);
+        } catch (error) {
+          console.error("Failed to fetch host:", error);
+        }
+      }
+      fetchHost();
+    }, []);
 
   return (
   <div style={{ padding: "2rem" }}>
     <h2>Video Recorder</h2>
-    <div style={{ marginTop: "0.5rem" }}>
-      <label>Filename: </label>
+    <div style={{ marginTop: "1.0rem" }}>
+      <label>Filename identifier_activity: </label>
       <input
         value={filename}
         onChange={(e) => setFilename(e.target.value)}
       />
     </div>
 
-    <div>
+    <div style={{ marginTop: "1.0rem" }}>
       <label>Session ID: </label>
       <input
         value={sessionId}
@@ -119,15 +214,13 @@ function App() {
       />
     </div>
 
-    <div style={{ marginTop: "0.5rem" }}>
+    <div style={{ marginTop: "1rem" }}>
       <label>Save Path: </label>
       <input
         value={savePath}
         onChange={(e) => setSavePath(e.target.value)}
       />
-    </div>
-
-    
+    </div>  
 
     <div style={{ marginTop: "1rem" }}>
       <button onClick={startRecording}>Start</button>
@@ -140,9 +233,13 @@ function App() {
       <button onClick={endSession} style={{ marginLeft: "1rem" }}>
         End Session
       </button>
+      <VideoSelector sessionId={sessionId} savePath={savePath} />
     </div>
   </div>
   );
 }
+
+
+
 
 export default App;

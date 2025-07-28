@@ -1,16 +1,19 @@
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from src.RemoteControl import RemoteControl
 from typing import Optional
-
+import urllib.parse
+import requests
 import os
 import shutil
 from datetime import datetime
 import uuid
 from pathlib import Path
 import csv
-from fastapi.responses import JSONResponse
+import cv2
 
 app = FastAPI()
 
@@ -48,9 +51,11 @@ class EndSessionRequest(BaseModel):
     save_path: str
     session_id: str
 
-# @app.get("/config")
-# def get_config():
-#     return {"host": HOST}
+app.mount("/videos", StaticFiles(directory="C:/Videos/Test Video Data"), name="videos")
+
+@app.get("/config")
+def get_config():
+    return {"host": HOST}
 
 @app.post("/start-recording", response_model=StartResponse)
 def start_recording(req: StartRequest):
@@ -157,3 +162,50 @@ async def end_session(req: EndSessionRequest):
                 shutil.copy2(file, dest)
 
     return {"message": "Session ended. Files grouped and CSV created.", "csv_path": str(csv_path)}
+
+@app.get("/list-videos")
+def list_videos(
+    session_id: str = Query(...),
+    save_path: str = Query(...)
+):
+    session_path = Path(save_path) / session_id
+    if not session_path.exists() or not session_path.is_dir():
+        raise HTTPException(status_code=404, detail=f"Session path not found: {session_path}")
+
+    # List only .mp4 files (case-insensitive)
+    video_names = [f.name for f in session_path.glob("*.mp4")]
+    return {"videos": video_names}
+
+
+@app.get("/videos")
+def get_video(
+    root_path: str = Query(...),
+    session_id: str = Query(...),
+    video_name: str = Query(...)
+):
+    video_path = Path(root_path) / session_id / video_name
+    try:
+        video_path = video_path.resolve(strict=True)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Video not found: {video_path}")
+
+    if not video_path.is_file():
+        raise HTTPException(status_code=400, detail=f"Requested path is not a file: {video_path}")
+
+    return FileResponse(path=video_path, media_type="video/mp4")
+
+# @app.get("/video_feed") This works for recordings from the webcam,
+# not the smart phone but it is a good first step
+# def video_feed():
+#     def generate():
+#         cap = cv2.VideoCapture(0)  # Or path to smartphone stream
+#         while True:
+#             success, frame = cap.read()
+#             if not success:
+#                 break
+#             _, buffer = cv2.imencode('.jpg', frame)
+#             frame_bytes = buffer.tobytes()
+#             yield (b'--frame\r\n'
+#                    b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+#     return StreamingResponse(generate(), media_type='multipart/x-mixed-replace; boundary=frame')
