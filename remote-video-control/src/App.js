@@ -197,7 +197,7 @@ function VideoSelector({ sessionId, savePath }) {
 
   return (
   <div style={{ padding: "2rem" }}>
-    <h2>Video Recorder</h2>
+    <h2>Remote Video Recorder</h2>
     <div style={{ marginTop: "1.0rem" }}>
       <label>Filename identifier_activity: </label>
       <input
