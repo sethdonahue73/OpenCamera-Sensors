@@ -31,6 +31,8 @@ Ensure all participant data is present.
 
 Simplify the recording screen to improve the user experience.
 
+Add a post-session viewer for video quality checks.
+
 
 
 ![OpenCamera Sensors logo](https://imgur.com/7qjCtgp.png)
