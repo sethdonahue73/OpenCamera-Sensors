@@ -5,7 +5,7 @@ Video and Camera Functionality:
 
 Automatically delete videos from the Android device after each session.
 
-Add second camera functionality (e.g., front-facing camera).
+Add second camera functionality, another camera in the system.
 
 Integrate the phase alignment button from the OpenCamera Sensors Application.
 
