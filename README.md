@@ -1,38 +1,28 @@
-Major To-dos
-This document outlines the primary development tasks for the Android application.
+# Android Application Development Roadmap
 
-Video and Camera Functionality:
+This document outlines the primary development tasks and feature additions for the Android application.
 
-Automatically delete videos from the Android device after each session.
+## Video and Camera Functionality
 
-Add second camera functionality, another camera in the system.
+-   **Automatically delete videos** from the Android device after each session.
+-   Add **second camera functionality**, integrating another camera into the system.
+-   Integrate the **phase alignment button** from the OpenCamera Sensors Application.
+-   Implement a feature to **resync and enable phase alignment** directly from the application.
 
-Integrate the phase alignment button from the OpenCamera Sensors Application.
+## Data Management & Backend
 
-Implement a feature to resync and enable phase alignment directly from the application.
+-   Establish a connection to the **DataJoint backend**.
+-   Record **IMU information** from the camera system.
 
-Data Management & Backend:
+## Quality Assurance & User Experience
 
-Establish a connection to the DataJoint backend.
-
-Record IMU information from the camera system (this data is already available but needs to be captured).
-
-Quality Assurance & User Experience:
-
-Add a number of quality checks at each step to ensure data quality and flexibility.
-
-Verify that session ingestion is named properly.
-
-Before a session starts, confirm that it's possible to save to the desired path.
-
-Perform calibration checks to ensure the calibration is valid and saved in the correct location.
-
-Ensure all participant data is present.
-
-Simplify the recording screen to improve the user experience.
-
-Add a post-session viewer for video quality checks.
-
+-   Add a number of quality checks at each step to ensure data quality and flexibility:
+    -   Verify that session ingestion is named properly.
+    -   Before a session starts, confirm that it's possible to save to the desired path.
+    -   Perform calibration checks to ensure the calibration is valid and saved in the correct location.
+    -   Ensure all participant data is present.
+-   **Simplify the recording screen** to improve the user experience.
+-   Add a **post-session viewer for video quality checks**.
 
 
 ![OpenCamera Sensors logo](https://imgur.com/7qjCtgp.png)
