@@ -1,3 +1,38 @@
+Major To-dos
+This document outlines the primary development tasks for the Android application.
+
+Video and Camera Functionality:
+
+Automatically delete videos from the Android device after each session.
+
+Add second camera functionality (e.g., front-facing camera).
+
+Integrate the phase alignment button from the OpenCamera Sensors Application.
+
+Implement a feature to resync and enable phase alignment directly from the application.
+
+Data Management & Backend:
+
+Establish a connection to the DataJoint backend.
+
+Record IMU information from the camera system (this data is already available but needs to be captured).
+
+Quality Assurance & User Experience:
+
+Add a number of quality checks at each step to ensure data quality and flexibility.
+
+Verify that session ingestion is named properly.
+
+Before a session starts, confirm that it's possible to save to the desired path.
+
+Perform calibration checks to ensure the calibration is valid and saved in the correct location.
+
+Ensure all participant data is present.
+
+Simplify the recording screen to improve the user experience.
+
+
+
 ![OpenCamera Sensors logo](https://imgur.com/7qjCtgp.png)
 
 **Note**: this is the main repository of OpenCamera Sensors. The old repository is now archived and
