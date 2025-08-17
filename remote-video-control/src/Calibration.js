@@ -1,121 +1,170 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 function Calibration() {
-  const [studyId, setStudyId] = useState("");
-  const [sessionId, setSessionId] = useState("");
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [isCalibrating, setIsCalibrating] = useState(false);
-  const [captureMessage, setCaptureMessage] = useState("");
-  const [calibrationMessage, setCalibrationMessage] = useState("");
+    // State variables for session details loaded from localStorage
+    const [studyId, setStudyId] = useState("");
+    const [sessionId, setSessionId] = useState("");
+    const [smartphoneIp, setSmartphoneIp] = useState("");
+    const [baseSavePath, setBaseSavePath] = useState("");
 
-  const startCalibrationCapture = async () => {
-    if (!studyId || !sessionId) {
-      alert("Please enter both Study ID and Session ID.");
-      return;
-    }
+    // State for the full derived save path
+    const [fullSavePath, setFullSavePath] = useState("");
 
-    setIsCapturing(true);
-    setCaptureMessage("Capturing 5-second calibration video...");
-    setCalibrationMessage(""); // Clear previous calibration message
+    // Calibration parameters
+    const [boardRows, setBoardRows] = useState(7);
+    const [boardCols, setBoardCols] = useState(5);
+    const [squareSize, setSquareSize] = useState(0.025); // in meters, e.g., 2.5 cm
+    const [duration, setDuration] = useState(5); // Default video duration in seconds
 
-    try {
-      const response = await axios.post("http://localhost:8000/capture-calibration-video", {
-        study_id: studyId,
-        session_id: sessionId,
-        duration: 5 // 5 seconds
-      });
-      setCaptureMessage(`Calibration video saved: ${response.data.file_path}`);
-    } catch (error) {
-      console.error("Failed to capture calibration video:", error);
-      setCaptureMessage("Failed to capture calibration video. Please check the backend.");
-    } finally {
-      setIsCapturing(false);
-    }
-  };
+    // UI state
+    const [isCalibrating, setIsCalibrating] = useState(false);
+    const [calibrationMessage, setCalibrationMessage] = useState("");
 
-  const startCalibrationProcessing = async () => {
-    if (!studyId || !sessionId) {
-      alert("Please enter both Study ID and Session ID.");
-      return;
-    }
+    // Use a useEffect hook to load session details and derive the full path when the component mounts
+    useEffect(() => {
+        const storedStudyId = localStorage.getItem('studyId');
+        const storedSessionId = localStorage.getItem('sessionId');
+        const storedSmartphoneIp = localStorage.getItem('smartphoneIp');
+        const storedBaseSavePath = localStorage.getItem('baseSavePath');
 
-    setIsCalibrating(true);
-    setCalibrationMessage("Processing video and calibrating camera...");
+        if (storedStudyId) setStudyId(storedStudyId);
+        if (storedSessionId) setSessionId(storedSessionId);
+        if (storedSmartphoneIp) setSmartphoneIp(storedSmartphoneIp);
+        if (storedBaseSavePath) setBaseSavePath(storedBaseSavePath);
 
-    try {
-      const response = await axios.post("http://localhost:8000/process-calibration-video", {
-        study_id: studyId,
-        session_id: sessionId
-      });
-      setCalibrationMessage(
-        `Calibration successful! Reprojection Error: ${response.data.reprojection_error.toFixed(4)}`
-      );
-      console.log("Calibration results:", response.data);
-    } catch (error) {
-      console.error("Failed to calibrate camera:", error);
-      setCalibrationMessage(
-        `Failed to calibrate camera. Error: ${error.response?.data?.detail || error.message}`
-      );
-    } finally {
-      setIsCalibrating(false);
-    }
-  };
+        // Derive the full save path from the stored values
+        if (storedStudyId && storedSessionId && storedBaseSavePath) {
+            const pathSeparator = storedBaseSavePath.endsWith('/') || storedBaseSavePath.endsWith('\\') ? '' : '/';
+            setFullSavePath(`${storedBaseSavePath}${pathSeparator}${storedStudyId}/${storedSessionId}`);
+        } else {
+            setFullSavePath("Not set");
+        }
 
-  return (
-    <div style={{ padding: "2rem", maxWidth: "800px", margin: "0 auto" }}>
-      <h2>Calibration</h2>
-      <p>This page is dedicated to initiating and managing calibration procedures.</p>
+        // Clear the message when the component loads
+        setCalibrationMessage("");
+    }, []);
 
-      <h3 style={{ marginTop: "2rem" }}>Study and Session Initialization</h3>
-      <div style={{ marginBottom: "1rem" }}>
-        <label htmlFor="study-id">Study ID:</label>
-        <input
-          type="text"
-          id="study-id"
-          value={studyId}
-          onChange={(e) => setStudyId(e.target.value)}
-          style={{ marginLeft: "0.5rem", padding: "8px" }}
-          placeholder="e.g., neuroscience_study_01"
-        />
-      </div>
-      <div style={{ marginBottom: "1rem" }}>
-        <label htmlFor="session-id">Session ID:</label>
-        <input
-          type="text"
-          id="session-id"
-          value={sessionId}
-          onChange={(e) => setSessionId(e.target.value)}
-          style={{ marginLeft: "0.5rem", padding: "8px" }}
-          placeholder="e.g., participant_1_day_1"
-        />
-      </div>
+    // Function to perform the entire calibration workflow
+    const performFullCalibration = async () => {
+        if (!studyId || !sessionId) {
+            setCalibrationMessage("Error: Session details are missing. Please go back to Session Initialization.");
+            return;
+        }
 
-      <h3 style={{ marginTop: "2.5rem" }}>Calibration Video Capture</h3>
-      <button
-        onClick={startCalibrationCapture}
-        disabled={isCapturing || !studyId || !sessionId}
-        style={{ padding: "10px 20px", fontSize: "1rem" }}
-      >
-        {isCapturing ? "Capturing..." : "Capture 5-sec Calibration Video"}
-      </button>
-      {captureMessage && <p style={{ marginTop: "1rem", color: isCapturing ? 'orange' : (captureMessage.includes("Failed") ? 'red' : 'green') }}>{captureMessage}</p>}
+        setIsCalibrating(true);
+        setCalibrationMessage("Starting smartphone video capture and calibration processing...");
 
-      <h3 style={{ marginTop: "2.5rem" }}>Process and Calibrate</h3>
-      <button
-        onClick={startCalibrationProcessing}
-        disabled={isCalibrating || isCapturing || !studyId || !sessionId}
-        style={{ padding: "10px 20px", fontSize: "1rem" }}
-      >
-        {isCalibrating ? "Calibrating..." : "Process Video & Calibrate"}
-      </button>
-      {calibrationMessage && <p style={{ marginTop: "1rem", color: isCalibrating ? 'orange' : (calibrationMessage.includes("Failed") ? 'red' : 'green') }}>{calibrationMessage}</p>}
+        try {
+            const response = await axios.post("http://localhost:8000/capture-and-process-smartphone-calibration", {}, {
+                params: {
+                    study_id: studyId,
+                    session_id: sessionId,
+                    smartphone_ip: smartphoneIp,
+                    duration: duration,
+                    board_rows: boardRows,
+                    board_cols: boardCols,
+                    square_size: squareSize,
+                    save_path: baseSavePath // Pass the baseSavePath to the backend
+                }
+            });
 
-      <p style={{ marginTop: "2rem", fontStyle: "italic" }}>
-        *Please ensure a Charuco or ArUco board is visible to the camera during calibration.
-      </p>
-    </div>
-  );
+            setCalibrationMessage(
+                `Calibration successful! Reprojection Error: ${response.data.reprojection_error.toFixed(4)}`
+            );
+            console.log("Calibration results:", response.data);
+        } catch (error) {
+            console.error("Failed to calibrate camera:", error);
+            setCalibrationMessage(
+                `Failed to calibrate camera. Error: ${error.response?.data?.detail || error.message}`
+            );
+        } finally {
+            setIsCalibrating(false);
+        }
+    };
+
+    return (
+        <div style={{ padding: "2rem", maxWidth: "800px", margin: "0 auto" }}>
+            <h2>Calibration</h2>
+            <p>This page is dedicated to initiating and managing calibration procedures.</p>
+            
+            {/* Display the loaded session details */}
+            <div style={{ background: '#f0f0f0', padding: '1rem', marginBottom: '2rem' }}>
+                <h3>Current Session Details</h3>
+                <p><strong>Study ID:</strong> {studyId || "Not set"}</p>
+                <p><strong>Session ID:</strong> {sessionId || "Not set"}</p>
+                <p><strong>Smartphone IP:</strong> {smartphoneIp || "Not set"}</p>
+                <p><strong>Full Save Path:</strong> <code>{fullSavePath}</code></p>
+            </div>
+
+            <h3 style={{ marginTop: "2.5rem" }}>Calibration Parameters</h3>
+            <div style={{ marginBottom: "1rem", display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                <div>
+                    <label htmlFor="board-rows">Inner Corners (Rows):</label>
+                    <input
+                        type="number"
+                        id="board-rows"
+                        value={boardRows}
+                        onChange={(e) => setBoardRows(parseInt(e.target.value))}
+                        style={{ marginLeft: "0.5rem", padding: "8px", width: "80px" }}
+                        min="1"
+                    />
+                </div>
+                <div>
+                    <label htmlFor="board-cols">Inner Corners (Cols):</label>
+                    <input
+                        type="number"
+                        id="board-cols"
+                        value={boardCols}
+                        onChange={(e) => setBoardCols(parseInt(e.target.value))}
+                        style={{ marginLeft: "0.5rem", padding: "8px", width: "80px" }}
+                        min="1"
+                    />
+                </div>
+                <div>
+                    <label htmlFor="square-size">Square Size (m):</label>
+                    <input
+                        type="number"
+                        id="square-size"
+                        value={squareSize}
+                        onChange={(e) => setSquareSize(parseFloat(e.target.value))}
+                        style={{ marginLeft: "0.5rem", padding: "8px", width: "80px" }}
+                        step="0.001"
+                        min="0.001"
+                    />
+                </div>
+                <div>
+                    <label htmlFor="duration">Video Duration (s):</label>
+                    <input
+                        type="number"
+                        id="duration"
+                        value={duration}
+                        onChange={(e) => setDuration(parseInt(e.target.value))}
+                        style={{ marginLeft: "0.5rem", padding: "8px", width: "80px" }}
+                        min="1"
+                    />
+                </div>
+            </div>
+
+            <h3 style={{ marginTop: "2.5rem" }}>Start Full Calibration Workflow</h3>
+            <button
+                onClick={performFullCalibration}
+                disabled={isCalibrating || !studyId || !sessionId}
+                style={{ padding: "10px 20px", fontSize: "1rem" }}
+            >
+                {isCalibrating ? (
+                    "Calibrating..."
+                ) : (
+                    "Start Full Calibration"
+                )}
+            </button>
+            {calibrationMessage && <p style={{ marginTop: "1rem", color: isCalibrating ? 'orange' : (calibrationMessage.includes("Error") ? 'red' : 'green') }}>{calibrationMessage}</p>}
+
+            <p style={{ marginTop: "2rem", fontStyle: "italic" }}>
+                *This will capture a video from the smartphone and process it for camera calibration in a single step.
+            </p>
+        </div>
+    );
 }
 
 export default Calibration;

@@ -1,67 +1,114 @@
 import React, { useEffect, useState } from "react";
 import axios from 'axios';
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom"; // Import Router components
-import About from "./About"; // Import About page component
-import Calibration from "./Calibration"; // Import Calibration page component
-import Participants from "./Participants"; // Import Particpants page component
+import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import About from "./About";
+import Calibration from "./Calibration";
+import Participants from "./Participants";
+import SessionInitialization from './SessionInitialization';
 
+const Home = () => {
+  const [sessionId, setSessionId] = useState("");
+  const [studyId, setStudyId] = useState("");
+  const [baseSavePath, setBaseSavePath] = useState("");
+  
+  const [activityName, setActivityName] = useState("");
+  const [selectedParticipantId, setSelectedParticipantId] = useState("");
+  const [trials, setTrials] = useState([]);
+  const [notes, setNotes] = useState({});
 
-function App() {
-  const [filename, setFilename] = useState("ID_activity");
-  const [savePath, setSavePath] = useState("c:/Videos/Test Video Data");
-  const [sessionId, setSessionId] = useState("project_name_and_date");
-  const [host, setHost] = useState("localhost"); // Optional: make dynamic if needed
+  const [existingParticipantIds, setExistingParticipantIds] = useState([]);
+  const [isLoadingParticipants, setIsLoadingParticipants] = useState(true);
 
-  // const [host, setHost] = useState(null);
+  // CORRECTED: State to trigger video list refresh is now declared
+  const [videoRefreshTrigger, setVideoRefreshTrigger] = useState(0);
 
+  useEffect(() => {
+    const storedSessionId = localStorage.getItem('sessionId');
+    const storedStudyId = localStorage.getItem('studyId');
+    const storedBaseSavePath = localStorage.getItem('baseSavePath');
+    
+    setSessionId(storedSessionId || "");
+    setStudyId(storedStudyId || "");
+    setBaseSavePath(storedBaseSavePath || "");
 
-  // const startRecording = async () => {
-  //   console.log("Start recording button clicked"); // <-- add this
-  //   try {
-  //     const res = await axios.post("http://localhost:8000/start-recording");
-  //     console.log("Response:", res.data); // <-- add this
-  //     alert("Recording started.");
-  //   } catch (err) {
-  //     console.error("Failed to start recording:", err); // <-- catch errors
-  //     alert("Failed to start recording.");
-  //   }
-  // };
-
-  // const stopRecording = async () => {
-  //   try {
-  //     const res = await axios.post("http://localhost:8000/stop-recording", {
-  //       name: filename,
-  //       save_path: savePath
-  //     });
-  //     alert("Video saved to: " + res.data.path);
-  //   } catch (err) {
-  //     console.error("Failed to stop recording:", err);
-  //     alert("Error stopping recording.");
-  //   }
-  // };
+    const fetchParticipants = async () => {
+      if (storedStudyId && storedBaseSavePath) {
+        setIsLoadingParticipants(true);
+        try {
+          const response = await axios.get(`http://localhost:8000/api/participants/list`, {
+            params: {
+              study_id: storedStudyId,
+              base_save_path: storedBaseSavePath,
+            },
+          });
+          setExistingParticipantIds(response.data.participant_ids);
+        } catch (error) {
+          console.error("Failed to fetch participant list:", error);
+          setExistingParticipantIds([]);
+        } finally {
+          setIsLoadingParticipants(false);
+        }
+      } else {
+        setIsLoadingParticipants(false);
+      }
+    };
+    
+    fetchParticipants();
+  }, []);
 
   const endSession = async () => {
-  try {
-    const res = await axios.post("http://localhost:8000/end-session", {
-      save_path: savePath,
-      session_id: sessionId
-    });
-    alert(res.data.message + "\nCSV: " + res.data.csv_path);
-  } catch (err) {
-    console.error("Failed to end session:", err);
-    alert("Error ending session.");
-  }
-};
-    
+    try {
+      if (!sessionId || !baseSavePath) {
+        alert("Session details not found. Please initialize a session first.");
+        return;
+      }
+      
+      const res = await axios.post("http://localhost:8000/end-session", {
+        save_path: baseSavePath,
+        session_id: sessionId,
+        notes: notes,
+      });
+      alert(res.data.message + "\nCSV: " + res.data.csv_path);
+      
+      setSessionId("");
+      setTrials([]);
+      setNotes({});
+      
+      localStorage.removeItem('sessionId');
+      localStorage.removeItem('studyId');
+      localStorage.removeItem('baseSavePath');
+
+    } catch (err) {
+      console.error("Failed to end session:", err);
+      alert("Error ending session.");
+    }
+  };
+
   const startRecording = async () => {
     try {
+      if (!sessionId || !selectedParticipantId || !activityName || !studyId || !baseSavePath) {
+        alert("Please select a participant, enter an activity, and ensure session details are set.");
+        return;
+      }
+      
+      const filename = `${selectedParticipantId}_${activityName}`;
+
       const res = await axios.post("http://localhost:8000/start-recording", {
         name: filename,
         session_id: sessionId,
-        save_path: savePath
+        save_path: baseSavePath,
+        study_id: studyId,
       });
+      
       setSessionId(res.data.session_id);
-      // alert("Recording started!");
+      
+      const now = new Date();
+      const newTrial = {
+        name: filename,
+        dateTime: now.toLocaleString(),
+      };
+      setTrials([...trials, newTrial]);
+
     } catch (err) {
       console.error("Failed to start recording:", err);
       alert("Error starting recording.");
@@ -70,58 +117,165 @@ function App() {
 
   const stopRecording = async () => {
     try {
-      if (!sessionId) {
-        alert("No active session!");
+      if (!sessionId || !baseSavePath || !studyId) {
+        alert("No active session or session details missing!");
         return;
       }
+      
+      const filename = `${selectedParticipantId}_${activityName}`;
+      
       const res = await axios.post("http://localhost:8000/stop-recording", {
         session_id: sessionId,
         name: filename,
-        save_path: savePath
+        save_path: baseSavePath,
+        study_id: studyId,
       });
       alert("Video saved to: " + res.data.path);
 
-      // Optionally extract the filename from the saved path if needed
-      // const extractedFilename = res.data.path.split("\\").pop(); // for Windows paths
-      // const extractedFilename = res.data.path.split("/").pop(); // for UNIX-like
+      setVideoRefreshTrigger(prev => prev + 1);
 
-      // Automatically delete the video
-      // await deleteVideo(extractedFilename);
-      // setSessionId(null); // clear after stopping
     } catch (err) {
       console.error("Failed to stop recording:", err);
       alert("Error stopping recording.");
     }
   };
 
-  
-// const deleteVideo = async (filename) => {
-//   try {
-//     const res = await fetch(`http://${host}:8000/delete_video/${filename}`, {
-//       method: "DELETE",
-//     });
-//     const data = await res.json();
-//     alert(`Deleted video: ${data.file}`);
-//   } catch (err) {
-//     console.error("Failed to delete video", err);
-//   }
-// };
-function VideoSelector({ sessionId, savePath }) {
+  const currentSavePath = `${baseSavePath}/${studyId}/${sessionId}`;
+
+  return (
+    <>
+      <h2>Video Recorder</h2>
+      <p>Root Path: <code>{currentSavePath}</code></p>
+
+      <div style={{ display: "flex", gap: "2rem", marginTop: "2rem" }}>
+        <div style={{ flex: 1 }}>
+          <h3>Controls</h3>
+          
+          <div style={{ marginBottom: "1rem" }}>
+            <label htmlFor="participant-select">Participant:</label>
+            <select
+              id="participant-select"
+              value={selectedParticipantId}
+              onChange={(e) => setSelectedParticipantId(e.target.value)}
+              style={{ marginLeft: "0.5rem", padding: "8px" }}
+              disabled={isLoadingParticipants}
+            >
+              <option value="">Select a participant</option>
+              {isLoadingParticipants ? (
+                <option disabled>Loading...</option>
+              ) : existingParticipantIds.length > 0 ? (
+                existingParticipantIds.map((id) => (
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
+                ))
+              ) : (
+                <option disabled>No participants found</option>
+              )}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: "1rem" }}>
+            <label htmlFor="activity-name">Activity:</label>
+            <input
+              id="activity-name"
+              value={activityName}
+              onChange={(e) => setActivityName(e.target.value)}
+              placeholder="e.g., jump_test"
+              style={{ marginLeft: "0.5rem", padding: "8px" }}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: "1rem", marginTop: "2rem" }}>
+            <button
+              onClick={startRecording}
+              style={{ padding: "1rem 2rem", fontSize: "1.2rem", cursor: "pointer" }}
+              disabled={!selectedParticipantId || !activityName || !sessionId}
+            >
+              Start Recording
+            </button>
+            <button
+              onClick={stopRecording}
+              style={{ padding: "1rem 2rem", fontSize: "1.2rem", cursor: "pointer" }}
+              disabled={!sessionId}
+            >
+              Stop Recording
+            </button>
+          </div>
+          <button
+            onClick={endSession}
+            style={{ marginTop: "1rem", padding: "0.5rem 1rem", cursor: "pointer" }}
+            disabled={!sessionId}
+          >
+            End Session
+          </button>
+        </div>
+
+        <div style={{ flex: 1, textAlign: "center" }}>
+          <h3>Video Feed</h3>
+          <VideoSelector sessionId={sessionId} savePath={baseSavePath} studyId={studyId} refreshTrigger={videoRefreshTrigger} />
+        </div>
+      </div>
+
+      <TrialList sessionId={sessionId} trials={trials} notes={notes} setNotes={setNotes} />
+    </>
+  );
+};
+
+// ... (TrialList and VideoSelector components from before)
+const TrialList = ({ sessionId, trials, notes, setNotes }) => {
+  return (
+    <div style={{ marginTop: "2rem" }}>
+      <h3>Trials for Session: {sessionId}</h3>
+      {trials.length === 0 ? (
+        <p>No trials recorded yet.</p>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ border: "1px solid #ccc", padding: "8px", textAlign: "left" }}>Trial Name</th>
+              <th style={{ border: "1px solid #ccc", padding: "8px", textAlign: "left" }}>Date & Time</th>
+              <th style={{ border: "1px solid #ccc", padding: "8px", textAlign: "left" }}>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trials.map((trial, index) => (
+              <tr key={index}>
+                <td style={{ border: "1px solid #ccc", padding: "8px" }}>{trial.name}</td>
+                <td style={{ border: "1px solid #ccc", padding: "8px" }}>{trial.dateTime}</td>
+                <td style={{ border: "1px solid #ccc", padding: "8px" }}>
+                  <textarea
+                    value={notes[trial.name] || ""}
+                    onChange={(e) => setNotes({ ...notes, [trial.name]: e.target.value })}
+                    style={{ width: "100%", minHeight: "50px" }}
+                    placeholder="Add notes for this trial..."
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+};
+
+function VideoSelector({ sessionId, savePath, studyId, refreshTrigger }) {
   const [videos, setVideos] = useState([]);
   const [selectedVideo, setSelectedVideo] = useState(null);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || !savePath || !studyId) return;
 
     async function fetchVideos() {
       try {
         const res = await axios.get("http://localhost:8000/list-videos", {
-          params: { session_id: sessionId, save_path: savePath },
+          params: { session_id: sessionId, save_path: savePath, study_id: studyId },
         });
 
         const allVideos = [null, ...res.data.videos];
         setVideos(allVideos);
-        setSelectedVideo(null); // default to None
+        setSelectedVideo(null);
       } catch (err) {
         console.error("Failed to fetch videos", err);
         setVideos([null]);
@@ -130,7 +284,7 @@ function VideoSelector({ sessionId, savePath }) {
     }
 
     fetchVideos();
-  }, [sessionId, savePath]);
+  }, [sessionId, savePath, studyId, refreshTrigger]);
 
   const videoUrl =
     selectedVideo && selectedVideo !== "null"
@@ -138,6 +292,8 @@ function VideoSelector({ sessionId, savePath }) {
           savePath
         )}&session_id=${encodeURIComponent(
           sessionId
+        )}&study_id=${encodeURIComponent(
+          studyId
         )}&video_name=${encodeURIComponent(selectedVideo)}`
       : null;
 
@@ -176,8 +332,8 @@ function VideoSelector({ sessionId, savePath }) {
       ) : (
         <div
           style={{
-            width: "640px",
-            height: "360px",
+            width: "1080px",
+            height: "720px",
             backgroundColor: "black",
             marginTop: "1rem",
             borderRadius: "8px",
@@ -188,126 +344,28 @@ function VideoSelector({ sessionId, savePath }) {
   );
 }
 
-  useEffect(() => {
-      async function fetchHost() {
-        try {
-          const response = await axios.get("http://localhost:8000/config");
-          setHost(response.data.host);
-        } catch (error) {
-          console.error("Failed to fetch host:", error);
-        }
-      }
-      fetchHost();
-    }, []);
-
-//   return (
-//   <div style={{ padding: "2rem" }}>
-//     <h2>Remote Video Recorder</h2>
-//     <div style={{ marginTop: "1.0rem" }}>
-//       <label>Filename identifier_activity: </label>
-//       <input
-//         value={filename}
-//         onChange={(e) => setFilename(e.target.value)}
-//       />
-//     </div>
-
-//     <div style={{ marginTop: "1.0rem" }}>
-//       <label>Session ID: </label>
-//       <input
-//         value={sessionId}
-//         onChange={(e) => setSessionId(e.target.value)}
-//       />
-//     </div>
-
-//     <div style={{ marginTop: "1rem" }}>
-//       <label>Save Path: </label>
-//       <input
-//         value={savePath}
-//         onChange={(e) => setSavePath(e.target.value)}
-//       />
-//     </div>  
-
-//     <div style={{ marginTop: "1rem" }}>
-//       <button onClick={startRecording}>Start</button>
-//       <button onClick={stopRecording} style={{ marginLeft: "1rem" }} disabled={!sessionId}>
-//         Stop
-//       </button>
-//       {/* <button onClick={() => deleteVideo(filename)} style={{ marginLeft: "1rem" }}>
-//         Delete Video
-//       </button> */}
-//       <button onClick={endSession} style={{ marginLeft: "1rem" }}>
-//         End Session
-//       </button>
-//       <VideoSelector sessionId={sessionId} savePath={savePath} />
-//     </div>
-//   </div>
-//   );
-// }
+function App() {
+  const [savePath, setSavePath] = useState("c:/Videos/Test Video Data");
 
   return (
     <Router>
       <div style={{ padding: "2rem" }}>
         <nav>
           <ul style={{ listStyle: "none", padding: 0, display: "flex", gap: "1rem" }}>
-            <li>
-              <Link to="/about">About</Link> {/* Moved About to first position */}
-            </li>
-            <li>
-              <Link to="/calibration">Calibration</Link> {/* Moved Calibration here */}
-            </li>
-            <li>
-              <Link to="/participants">Participants</Link> {/* Moved Participants here */}
-            </li>
-            <li>
-              <Link to="/">Home</Link> {/* Moved Home to last position */}
-            </li>
+            <li><Link to="/about">About</Link></li>
+            <li><Link to="/Session-Init">Session Initialization</Link></li>
+            <li><Link to="/calibration">Calibration</Link></li>
+            <li><Link to="/participants">Participants</Link></li>
+            <li><Link to="/">Home</Link></li>
           </ul>
         </nav>
 
         <Routes>
-          {/* Reordered Routes to match the desired navigation order */}
           <Route path="/about" element={<About />} />
+          <Route path="/Session-Init" element={<SessionInitialization setSavePath={setSavePath} />} />
           <Route path="/calibration" element={<Calibration />} />
           <Route path="/participants" element={<Participants />} />
-          <Route path="/" element={
-            <>
-              <h2>Video Recorder</h2>
-              <div style={{ marginTop: "1.0rem" }}>
-                <label>Filename identifier_activity: </label>
-                <input
-                  value={filename}
-                  onChange={(e) => setFilename(e.target.value)}
-                />
-              </div>
-
-              <div style={{ marginTop: "1.0rem" }}>
-                <label>Session ID: </label>
-                <input
-                  value={sessionId}
-                  onChange={(e) => setSessionId(e.target.value)}
-                />
-              </div>
-
-              <div style={{ marginTop: "1rem" }}>
-                <label>Save Path: </label>
-                <input
-                  value={savePath}
-                  onChange={(e) => setSavePath(e.target.value)}
-                />
-              </div>
-
-              <div style={{ marginTop: "1rem" }}>
-                <button onClick={startRecording}>Start</button>
-                <button onClick={stopRecording} style={{ marginLeft: "1rem" }} disabled={!sessionId}>
-                  Stop
-                </button>
-                <button onClick={endSession} style={{ marginLeft: "1rem" }}>
-                  End Session
-                </button>
-                <VideoSelector sessionId={sessionId} savePath={savePath} />
-              </div>
-            </>
-          } />
+          <Route path="/" element={<Home />} />
         </Routes>
       </div>
     </Router>
