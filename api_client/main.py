@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import time
 import pickle
+import json # Added for JSON file reading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -13,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
-# from src.RemoteControl import RemoteControl # Uncomment this if you are using a RemoteControl library
+from src.RemoteControl import RemoteControl # Uncomment this if you are using a RemoteControl library
 
 app = FastAPI()
 
@@ -26,7 +27,7 @@ app.add_middleware(
 )
 
 # NOTE: Uncomment and configure your smartphone host if needed
-# HOST = os.getenv("SMARTPHONE_HOST", "192.168.4.245")
+HOST = os.getenv("SMARTPHONE_HOST", "192.168.4.245")
 sessions: dict[str, dict] = {} 
 
 # --- Pydantic Models for Request Bodies ---
@@ -227,15 +228,15 @@ async def start_recording(request: StartRecordingRequest):
     
     try:
         # Note: Your RemoteControl library needs to be uncommented for this to work
-        # rc = RemoteControl(HOST)
-        # phase, duration, exp_time = rc.start_video()
+        rc = RemoteControl(HOST)
+        phase, duration, exp_time = rc.start_video()
         
         sessions[request.session_id] = {
             "save_path": request.save_path,
             "study_id": request.study_id,
             "name": request.name,
             "is_recording": True,
-            # "remote_control": rc, # Uncomment for real use
+            "remote_control": rc, # Uncomment for real use
             "start_time": datetime.now(),
             "videos": [] # New: list to store video details
         }
@@ -244,7 +245,7 @@ async def start_recording(request: StartRecordingRequest):
         return {"message": "Recording started.", "session_id": request.session_id}
         
     except Exception as e:
-        # if 'rc' in locals(): rc.close() # Uncomment for real use
+        if 'rc' in locals(): rc.close() # Uncomment for real use
         raise HTTPException(status_code=500, detail=f"Failed to start recording on phone: {str(e)}")
 
 
@@ -257,17 +258,17 @@ async def stop_recording(request: StopRecordingRequest):
         raise HTTPException(status_code=400, detail="No active recording found for this session.")
         
     # Note: Your RemoteControl library needs to be uncommented for this to work
-    # rc = sessions[request.session_id]["remote_control"]
+    rc = sessions[request.session_id]["remote_control"]
     
     try:
-        # rc.stop_video()
-        # original_path = rc.get_video(want_progress_bar=False)
+        rc.stop_video()
+        original_path = rc.get_video(want_progress_bar=False)
 
-        # SIMULATED VIDEO DOWNLOAD FOR DEMO
-        downloaded_filename = f"simulated_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
-        original_path = Path(os.getcwd()) / downloaded_filename
-        with open(original_path, "w") as f:
-            f.write("This is a simulated video file.")
+        # # SIMULATED VIDEO DOWNLOAD FOR DEMO
+        # downloaded_filename = f"simulated_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
+        # original_path = Path(os.getcwd()) / downloaded_filename
+        # with open(original_path, "w") as f:
+        #     f.write("This is a simulated video file.")
 
         print(f"Constructed path to downloaded video: {original_path}")
         
@@ -276,11 +277,11 @@ async def stop_recording(request: StopRecordingRequest):
         timestamp_suffix = start_time.strftime("_%Y-%m-%d_%H-%M-%S")
     
     except Exception as e:
-        # if 'rc' in locals(): rc.close() # Uncomment for real use
+        if 'rc' in locals(): rc.close() # Uncomment for real use
         raise HTTPException(status_code=500, detail=f"Failed to stop recording or download video: {str(e)}")
 
     finally:
-        # if 'rc' in locals(): rc.close() # Uncomment for real use
+        if 'rc' in locals(): rc.close() # Uncomment for real use
         sessions[request.session_id]["is_recording"] = False
 
     try:
@@ -517,6 +518,60 @@ async def capture_and_process_smartphone_calibration(
     except Exception as e:
         print(f"Calibration failed: {e}")
         raise HTTPException(status_code=500, detail=f"Calibration failed: {str(e)}")
+
+# =================================================================================
+# API ENDPOINT FOR LISTING configuration FILES
+# =================================================================================
+@app.get("/get-configurations")
+async def get_configurations(config_path: str = 'C:\\OpenCameraVideos\\configs'):
+    try:
+        config_files = []
+        for file in Path(config_path).glob("*.json"):
+            config_files.append(file.name)
+        return {"configurations": config_files}
+    except Exception as e:
+        print(f"Error listing configurations: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list configurations.")
+
+
+# =================================================================================
+# NEW: API ENDPOINT FOR LISTING AND READING CONFIGURATION FILES
+# =================================================================================
+# IMPORTANT: Update this path to match the location on your system.
+# A Pydantic model to define the expected structure of the request body
+# Another CORRECT option, if the path is a variable
+# CONFIG_PATH = 'C:\\OpenCameraVideos\\configs'
+# class ConfigRequest(BaseModel):
+#     file_path: str = CONFIG_PATH
+
+# @app.post('/api/get-configurations', summary="Read a specific JSON configuration file.")
+# async def get_specific_configuration(request: ConfigRequest):
+#     """
+#     API endpoint to read and serve a single JSON file based on the
+#     'file_path' provided in the request body.
+#     """
+#     file_path = request.file_path
+    
+#     # Check if the file exists and is a JSON file
+#     if not os.path.isfile(file_path) or not file_path.endswith(".json"):
+#         raise HTTPException(status_code=404, detail="The specified configuration file was not found or is not a JSON file.")
+    
+#     try:
+#         # Open and read the JSON file
+#         with open(file_path, 'r') as file:
+#             config_data = json.load(file)
+            
+#         # Return the content of the single configuration file
+#         return {"configurations": [config_data]}
+            
+#     except json.JSONDecodeError:
+#         print(f"Error: Could not decode JSON from file: {file_path}")
+#         raise HTTPException(status_code=400, detail="Invalid JSON file format.")
+            
+#     except Exception as e:
+#         # Handle any other potential errors, like permission issues
+#         print(f"An unexpected error occurred: {e}")
+#         raise HTTPException(status_code=500, detail="An internal server error occurred while reading the file.")
 
 # The following endpoints from your provided code are kept as-is,
 # assuming they are part of a different workflow.

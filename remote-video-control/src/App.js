@@ -332,8 +332,8 @@ function VideoSelector({ sessionId, savePath, studyId, refreshTrigger }) {
       ) : (
         <div
           style={{
-            width: "1080px",
-            height: "720px",
+            width: "640px",
+            height: "360px",
             backgroundColor: "black",
             marginTop: "1rem",
             borderRadius: "8px",
